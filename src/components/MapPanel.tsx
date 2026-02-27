@@ -1,11 +1,24 @@
-import React, { useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { useGameState } from '../game/state';
-import { CITY_DISTRICTS, CITY_ROADS, CITY_BUILDINGS, CITY_WALL_OUTER, RIVER_PATH } from '../game/data';
+import { CITY_DISTRICTS, CITY_ROADS, CITY_BUILDINGS, CITY_WALL_OUTER, RIVER_PATH, CITY_POPULATION_TOTAL } from '../game/data';
 import { travelTo } from '../game/actions';
 
 export function MapPanel() {
   const G = useGameState();
   const [tooltip, setTooltip] = useState<{ x: number, y: number, text: string } | null>(null);
+
+  const citizenPoints = useMemo(() => (
+    Array.from({ length: CITY_POPULATION_TOTAL }, (_, i) => {
+      const col = i % 40;
+      const row = Math.floor(i / 40);
+      const jitterX = Math.sin(i * 1.7) * 2.2;
+      const jitterY = Math.cos(i * 1.1) * 2.2;
+      return {
+        x: 122 + col * 14.2 + jitterX,
+        y: 188 + row * 16.5 + jitterY,
+      };
+    })
+  ), []);
 
   const handleMapClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
@@ -18,6 +31,11 @@ export function MapPanel() {
     if ((e.target as Element).closest('[data-district],[data-building]')) return;
 
     G.playerMapTarget = { x: svgX, y: svgY };
+    if (!G.activeAction || G.activeAction.id.startsWith('travel_')) {
+      G.pose = 'walking';
+      G.poseLabel = 'Walking';
+      G.mapMoveMode = 'manual';
+    }
   };
 
   const handleDistrictClick = (e: React.MouseEvent, dk: string) => {
@@ -46,50 +64,52 @@ export function MapPanel() {
   };
 
   return (
-    <div className="flex-1 relative bg-gradient-to-br from-[#0a1208] to-[#0d1a0a] overflow-hidden border-b-2 border-[#3d2e1a]">
-      <svg 
-        viewBox="0 0 800 800" 
-        className="w-full h-full cursor-crosshair bg-[#060d04]"
+    <div className="flex-1 relative bg-gradient-to-br from-[#120d08] to-[#1f1710] overflow-hidden border-b-2 border-[#58462f]">
+      <svg
+        viewBox="0 0 800 800"
+        className="w-full h-full cursor-crosshair bg-[#1b140d]"
         onClick={handleMapClick}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setTooltip(null)}
       >
         <defs>
-          <filter id="map-glow">
-            <feGaussianBlur stdDeviation="2" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-          <filter id="map-glow-strong">
-            <feGaussianBlur stdDeviation="3.5" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-          <pattern id="ground-texture" patternUnits="userSpaceOnUse" width="8" height="8">
-            <rect width="8" height="8" fill="#080e06"/>
-            <circle cx="1" cy="1" r="0.5" fill="#060c04" opacity="0.6"/>
-            <circle cx="5" cy="4" r="0.4" fill="#050a03" opacity="0.5"/>
-            <circle cx="3" cy="7" r="0.3" fill="#070c05" opacity="0.4"/>
+          <filter id="map-glow"><feGaussianBlur stdDeviation="1.7" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <pattern id="parchment" patternUnits="userSpaceOnUse" width="20" height="20">
+            <rect width="20" height="20" fill="#251b11"/>
+            <circle cx="4" cy="5" r="0.7" fill="#3a2b1a"/>
+            <circle cx="15" cy="12" r="0.8" fill="#3e2f1e"/>
+            <path d="M0 10 H20 M10 0 V20" stroke="#2e2216" strokeWidth="0.5" opacity="0.4"/>
           </pattern>
+          <radialGradient id="city-core" cx="50%" cy="48%" r="56%">
+            <stop offset="0%" stopColor="#4a3722" />
+            <stop offset="68%" stopColor="#2b2015" />
+            <stop offset="100%" stopColor="#18120c" />
+          </radialGradient>
         </defs>
 
-        <rect width="800" height="800" fill="url(#ground-texture)"/>
+        <rect width="800" height="800" fill="url(#parchment)"/>
+        <circle cx="398" cy="410" r="372" fill="url(#city-core)" opacity="0.75"/>
 
-        <path d={RIVER_PATH} stroke="#1a4a7a" strokeWidth="24" fill="none" opacity="0.9"/>
-        <path d={RIVER_PATH} stroke="#2060a0" strokeWidth="14" fill="none" opacity="0.75"/>
-        <path d={RIVER_PATH} stroke="#3080c0" strokeWidth="6" fill="none" opacity="0.6"/>
+        <path d={RIVER_PATH} stroke="#184f73" strokeWidth="34" fill="none" opacity="0.55"/>
+        <path d={RIVER_PATH} stroke="#2c82b5" strokeWidth="16" fill="none" opacity="0.85"/>
 
-        <polygon points={CITY_WALL_OUTER} fill="none" stroke="#8a7040" strokeWidth="9" opacity="0.95"/>
-        <polygon points={CITY_WALL_OUTER} fill="none" stroke="#c0a060" strokeWidth="3" opacity="0.8"/>
+        <polygon points={CITY_WALL_OUTER} fill="none" stroke="#7c6243" strokeWidth="14" opacity="0.9"/>
+        <polygon points={CITY_WALL_OUTER} fill="none" stroke="#c9a67a" strokeWidth="4" opacity="0.8"/>
+
+        {citizenPoints.map((c, i) => (
+          <circle key={i} cx={c.x} cy={c.y} r={1.45} fill={i % 7 === 0 ? '#f6e2c6' : '#d0b190'} opacity={0.28 + (i % 10) * 0.02} />
+        ))}
 
         {Object.entries(CITY_DISTRICTS).map(([dk, d]) => {
           const isCurrent = G.location === d.gameId;
           return (
-            <polygon 
+            <polygon
               key={dk}
               points={d.polygon}
               fill={d.fillColor}
-              stroke={isCurrent ? '#c8962a' : d.borderColor}
-              strokeWidth={isCurrent ? 2.5 : 1.5}
-              className="cursor-pointer hover:opacity-80 transition-opacity"
+              stroke={isCurrent ? '#ffdc89' : d.borderColor}
+              strokeWidth={isCurrent ? 3 : 2}
+              className="cursor-pointer hover:opacity-90 transition-opacity"
               onClick={(e) => handleDistrictClick(e, dk)}
               data-district={dk}
             >
@@ -98,49 +118,47 @@ export function MapPanel() {
           );
         })}
 
-        {CITY_ROADS.map(([x1,y1,x2,y2], i) => (
+        {CITY_ROADS.map(([x1, y1, x2, y2], i) => (
           <g key={i}>
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#4a3818" strokeWidth="3.5" opacity="0.9"/>
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#786040" strokeWidth="1.5" opacity="0.7"/>
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#3e3020" strokeWidth="8" opacity="0.8"/>
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#8d7149" strokeWidth="3" opacity="0.85"/>
           </g>
         ))}
 
-        {CITY_BUILDINGS.map(b => {
-          const accent: Record<string, string> = {
-            home:'#5a4020', shop:'#806020', tavern:'#804010', church:'#604080',
-            guild:'#405820', blacksmith:'#504040', merchant:'#705020',
-            workshop:'#403020', mansion:'#304060', bank:'#804040',
-            market:'#786020', healer:'#305020', bathhouse:'#205040',
-            castle:'#404068', misc:'#383828',
-          };
-          return (
-            <g key={b.id}>
-              <rect 
-                x={b.x} y={b.y} width={b.w} height={b.h}
-                fill={b.color} stroke={accent[b.type] || '#505020'} strokeWidth="1.5" opacity="0.95"
-                rx="1" className="cursor-pointer hover:brightness-125"
-                data-building={b.id}
-              >
-                <title>{b.label || b.type}</title>
-              </rect>
-              <line x1={b.x} y1={b.y} x2={b.x+b.w} y2={b.y} stroke="rgba(255,255,255,0.12)" strokeWidth="1"/>
-            </g>
-          );
-        })}
+        {CITY_BUILDINGS.map(b => (
+          <g key={b.id}>
+            <rect
+              x={b.x} y={b.y} width={b.w} height={b.h}
+              fill={b.color} stroke="#d9ba86" strokeWidth="1.1" opacity="0.95"
+              rx="1.5" className="cursor-pointer hover:brightness-125"
+              data-building={b.id}
+            >
+              <title>{b.label || b.type}</title>
+            </rect>
+            <path d={`M ${b.x} ${b.y} L ${b.x + b.w / 2} ${b.y - 5} L ${b.x + b.w} ${b.y}`} fill="#7f5e3a" opacity="0.75"/>
+          </g>
+        ))}
 
         {Object.entries(CITY_DISTRICTS).map(([dk, d]) => (
-          <text 
+          <text
             key={`lbl-${dk}`} x={d.labelX} y={d.labelY} textAnchor="middle"
-            fontFamily="Cinzel,serif" fontSize="8" fill={G.location===d.gameId ? '#e8c060' : 'rgba(255,255,240,0.75)'}
-            pointerEvents="none" letterSpacing="1"
+            fontFamily="Cinzel,serif" fontSize="10" fill={G.location === d.gameId ? '#ffe7aa' : 'rgba(255,240,215,0.9)'}
+            pointerEvents="none" letterSpacing="1.2"
           >
             {d.name.toUpperCase()}
           </text>
         ))}
 
-        {G.npcs.map((npc: any, i: number) => (
-          <circle 
-            key={npc.id} cx={npc.x} cy={npc.y} r="3" fill={npc.color} opacity="0.8" 
+        <text x="400" y="44" textAnchor="middle" fontFamily="Cinzel, serif" fontSize="18" fill="#f0d4a6" letterSpacing="2">
+          MEDIEVAL CITY OF HALROW
+        </text>
+        <text x="400" y="66" textAnchor="middle" fontFamily="Cinzel, serif" fontSize="12" fill="#dfc290" letterSpacing="1">
+          ESTIMATED POPULATION: {CITY_POPULATION_TOTAL} CITIZENS
+        </text>
+
+        {G.npcs.map((npc: any) => (
+          <circle
+            key={npc.id} cx={npc.x} cy={npc.y} r="3.1" fill={npc.color} opacity="0.85"
             className="cursor-pointer hover:r-4 transition-all"
             onClick={(e) => { e.stopPropagation(); G.selectedNpcId = npc.id; }}
           >
@@ -150,21 +168,20 @@ export function MapPanel() {
 
         {G.playerMapPos && (
           <g>
-            <circle cx={G.playerMapPos.x} cy={G.playerMapPos.y} r="5.5" fill="rgba(40,100,200,0.3)" filter="url(#map-glow-strong)"/>
-            <circle cx={G.playerMapPos.x} cy={G.playerMapPos.y} r="4" fill="#4090ff" stroke="#80c0ff" strokeWidth="1.5" filter="url(#map-glow)">
-              <animate attributeName="r" values="4;5.5;4" dur="1.8s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="1;0.85;1" dur="1.8s" repeatCount="indefinite" />
+            <circle cx={G.playerMapPos.x} cy={G.playerMapPos.y} r="7" fill="rgba(255,211,128,0.22)" filter="url(#map-glow)"/>
+            <circle cx={G.playerMapPos.x} cy={G.playerMapPos.y} r="4.5" fill="#ffd17e" stroke="#fff1cf" strokeWidth="1.5">
+              <animate attributeName="r" values="4.5;6;4.5" dur="1.6s" repeatCount="indefinite" />
             </circle>
           </g>
         )}
 
         {G.playerMapTarget && (
-          <circle cx={G.playerMapTarget.x} cy={G.playerMapTarget.y} r="6" fill="none" stroke="#4090ff" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.6" />
+          <circle cx={G.playerMapTarget.x} cy={G.playerMapTarget.y} r="7" fill="none" stroke="#ffe0a8" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.75" />
         )}
       </svg>
       {tooltip && (
-        <div 
-          className="absolute pointer-events-none bg-[#0a0804]/95 border border-[#6a4020] px-2.5 py-2 text-[10px] text-[#c8b080] font-['Cinzel'] rounded-sm z-10"
+        <div
+          className="absolute pointer-events-none bg-[#1a120a]/95 border border-[#9e7a4f] px-2.5 py-2 text-[10px] text-[#f0d5a8] font-['Cinzel'] rounded-sm z-10"
           style={{ left: tooltip.x + 15, top: tooltip.y + 15 }}
         >
           {tooltip.text}

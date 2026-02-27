@@ -1,12 +1,13 @@
 import { useGameState, emitChange } from '../game/state';
-import { LOCATIONS, OUTFITS, INTERESTS, TRAINING_EXERCISES } from '../game/data';
-import { performAction, stopCurrentAction, startTraining, buyFood, addToInventory, ACTIONS, equipItem } from '../game/actions';
+import { LOCATIONS, OUTFITS, INTERESTS, TRAINING_EXERCISES, EQUIP_SLOTS, EQUIPMENT_ITEMS, SOCIAL_TITLES } from '../game/data';
+import { performAction, stopCurrentAction, startTraining, buyFood, addToInventory, ACTIONS, equipItem, unequipItem } from '../game/actions';
 import { priceStr, updateCharRank } from '../game/engine';
 
 export function RightPanel() {
   const G = useGameState();
 
   const tabs = [
+    { id: 'character', label: 'CHARACTER' },
     { id: 'actions', label: 'ACTIONS' },
     { id: 'market', label: 'MARKET' },
     { id: 'train', label: 'TRAIN' },
@@ -29,12 +30,69 @@ export function RightPanel() {
         ))}
       </div>
       <div className="flex-1 overflow-y-auto p-4 bg-[#1a1510]">
+        {G.activeTab === 'character' && <CharacterTab />}
         {G.activeTab === 'actions' && <ActionsTab />}
         {G.activeTab === 'market' && <MarketTab />}
         {G.activeTab === 'train' && <TrainTab />}
         {G.activeTab === 'inventory' && <InventoryTab />}
         {G.activeTab === 'interests' && <InterestsTab />}
         {G.activeTab === 'gang' && <GangTab />}
+      </div>
+    </div>
+  );
+}
+
+
+function CharacterTab() {
+  const G = useGameState();
+  const titleObj = SOCIAL_TITLES.find((t: any) => t.id === G.title) || SOCIAL_TITLES[0];
+  const level = Math.floor((G.str + G.dex + G.int + G.wis + G.vit + G.luk) / 3);
+  const totalXP = ['str','dex','int','wis','vit'].reduce((sum, stat) => sum + (G[stat + 'XP'] || 0), 0);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="bg-[#201a13] border border-[#3d2e1a] rounded-sm p-3">
+        <div className="font-['Cinzel'] text-[15px] text-[#f0e0c0]">{G.name || 'Aelric'}</div>
+        <div className="text-[11px] text-[#b99657] font-['Cinzel'] mt-0.5">{titleObj?.label || 'Wanderer'}</div>
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-3 text-[11px]">
+          <div><span className="text-[#8a7a60]">Level:</span> <span className="text-[#e8b84b]">{level}</span></div>
+          <div><span className="text-[#8a7a60]">XP Pool:</span> <span className="text-[#e8b84b]">{Math.floor(totalXP)}</span></div>
+          <div><span className="text-[#8a7a60]">Rank:</span> <span className="text-[#d8c7a1]">{G.rankState?.base || 'vagrant'}</span></div>
+          <div><span className="text-[#8a7a60]">Location:</span> <span className="text-[#d8c7a1]">{LOCATIONS[G.location]?.name || G.location}</span></div>
+        </div>
+      </div>
+
+      <div className="bg-[#201a13] border border-[#3d2e1a] rounded-sm p-3">
+        <div className="font-['Cinzel'] text-[10px] text-[#7a5a18] tracking-[2px] uppercase mb-2">Worn Items</div>
+        <div className="grid grid-cols-2 gap-2">
+          {EQUIP_SLOTS.map((slot: any) => {
+            const itemId = G.equipment[slot.id];
+            const item = itemId ? EQUIPMENT_ITEMS[itemId] : null;
+            return (
+              <button
+                key={slot.id}
+                onClick={() => item && unequipItem(slot.id)}
+                className={`text-left p-2 rounded-sm border text-[11px] ${item ? 'border-[#7a5a18] bg-[#261e14] hover:border-[#c8962a]' : 'border-[#3d2e1a] bg-[#17120e] text-[#6e614f]'}`}
+              >
+                <div className="font-['Cinzel'] text-[10px] tracking-[0.8px]">{slot.label}</div>
+                <div className="mt-1">{item ? `${item.icon || ''} ${item.name}` : '? empty ?'}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="bg-[#201a13] border border-[#3d2e1a] rounded-sm p-3">
+        <div className="font-['Cinzel'] text-[10px] text-[#7a5a18] tracking-[2px] uppercase mb-2">Core Stats</div>
+        <div className="grid grid-cols-3 gap-2 text-[11px]">
+          {['str','dex','int','wis','vit','luk'].map(stat => (
+            <div key={stat} className="bg-[#17120e] border border-[#3d2e1a] rounded-sm px-2 py-1.5 text-center">
+              <div className="text-[#8a7a60] text-[9px] font-['Cinzel'] uppercase">{stat}</div>
+              <div className="text-[#e8b84b] font-['Cinzel'] text-[13px]">{G[stat]}</div>
+              {stat !== 'luk' && <div className="text-[#6e614f] text-[9px]">xp {Math.floor(G[stat + 'XP'] || 0)}</div>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 
 export const G: any = {
   copper: 3,
@@ -59,6 +59,7 @@ export const G: any = {
   gamePaused: false,
   playerMapPos: null,
   playerMapTarget: null,
+  mapMoveMode: null,
   selectedNpcId: null,
   activeTab: 'actions',
 };

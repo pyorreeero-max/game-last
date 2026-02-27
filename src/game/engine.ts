@@ -1,5 +1,5 @@
 import { G, emitChange } from './state';
-import { SOCIAL_TITLES, ALL_TRAITS, GOLD_TO_COPPER, SILVER_TO_COPPER, RANDOM_EVENTS } from './data';
+import { SOCIAL_TITLES, ALL_TRAITS, GOLD_TO_COPPER, SILVER_TO_COPPER, RANDOM_EVENTS, CITY_DISTRICTS } from './data';
 import { initNPCs, tickNPCs } from './npc';
 import { giveStarterEquipment } from './actions';
 
@@ -7,11 +7,29 @@ export const BASE_GAME_MINS_PER_REAL_SEC = 2;
 let lastTickTime = Date.now();
 let gameInterval: any = null;
 
+function centroidFromPolygon(poly: string) {
+  const pts = poly.split(' ').map((p) => p.split(',').map(Number));
+  const cx = pts.reduce((sum, p) => sum + p[0], 0) / pts.length;
+  const cy = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
+  return { x: cx, y: cy };
+}
+
+function ensureMapPosition() {
+  if (G.playerMapPos) return;
+  const district = CITY_DISTRICTS[G.location];
+  if (district?.polygon) {
+    G.playerMapPos = centroidFromPolygon(district.polygon);
+  } else {
+    G.playerMapPos = { x: 200, y: 550 };
+  }
+}
+
 export function initGame() {
   if (gameInterval) clearInterval(gameInterval);
   lastTickTime = Date.now();
   initNPCs();
   giveStarterEquipment();
+  ensureMapPosition();
   gameInterval = setInterval(gameTick, 200);
   
   log('You wake in the gutter of Ashford\'s Poor Quarter. Your head pounds. Your stomach howls.', 'ev-info');
@@ -34,15 +52,35 @@ export function gameTick() {
   tickNPCs();
   
   // Map movement
+  ensureMapPosition();
+
+  if (G.pose === 'running' && G.playerMapPos && !G.playerMapTarget) {
+    const a = Date.now() / 650;
+    const r = 36 + ((Math.sin(a * 0.7) + 1) * 20);
+    G.playerMapTarget = {
+      x: Math.max(42, Math.min(758, G.playerMapPos.x + Math.cos(a) * r)),
+      y: Math.max(42, Math.min(758, G.playerMapPos.y + Math.sin(a * 1.35) * r)),
+    };
+  }
+
   if (G.playerMapTarget && G.playerMapPos) {
     const dx = G.playerMapTarget.x - G.playerMapPos.x;
     const dy = G.playerMapTarget.y - G.playerMapPos.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
-    const speed = 0.8 * G.gameSpeed;
+    const speed = (G.pose === 'running' ? 1.7 : 0.92) * G.gameSpeed;
+
     if (dist < speed + 0.1) {
       G.playerMapPos.x = G.playerMapTarget.x;
       G.playerMapPos.y = G.playerMapTarget.y;
       G.playerMapTarget = null;
+
+      if (G.mapMoveMode === 'manual') {
+        G.mapMoveMode = null;
+        if (!G.activeAction || G.activeAction.id.startsWith('travel_')) {
+          G.pose = 'idle';
+          G.poseLabel = 'Idle';
+        }
+      }
     } else {
       G.playerMapPos.x += (dx / dist) * speed;
       G.playerMapPos.y += (dy / dist) * speed;

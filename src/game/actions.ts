@@ -1,6 +1,6 @@
 import { G, emitChange } from './state';
 import { advanceTime, log, addCopper, showToast, priceStr, gainSkillXP, gainStatXP, damageHp, gainFame, gainTrait, formatGameTime } from './engine';
-import { LOCATIONS, SILVER_TO_COPPER, EQUIPMENT_ITEMS } from './data';
+import { LOCATIONS, SILVER_TO_COPPER, EQUIPMENT_ITEMS, CITY_DISTRICTS } from './data';
 
 export const ACTIONS: Record<string, any[]> = {
   poor_quarter: [
@@ -102,6 +102,7 @@ export function stopCurrentAction(silent = false) {
   G.activeAction = null;
   G.pendingChoices = null;
   G.pose = 'idle';
+  if (G.mapMoveMode === 'manual') G.mapMoveMode = null;
   if (!silent) log('You stop what you were doing.', 'ev-info');
   emitChange();
 }
@@ -110,6 +111,7 @@ export function startAction(cfg: any) {
   stopCurrentAction(true);
   G.pose = cfg.pose;
   G.poseLabel = cfg.poseLabel || cfg.id;
+  G.mapMoveMode = null;
   G.activeAction = {
     id: cfg.id, pose: cfg.pose, title: cfg.title,
     feed: [], stopFn: cfg.stopFn || null, interval: null, _ticks: 0,
@@ -167,6 +169,15 @@ export function travelTo(locationId: string) {
   const fromName = LOCATIONS[G.location]?.name || G.location;
   
   G.location = locationId;
+  G.mapMoveMode = 'travel';
+
+  const district = CITY_DISTRICTS[locationId];
+  if (district?.polygon) {
+    const pts = district.polygon.split(' ').map((p: string) => p.split(',').map(Number));
+    const cx = pts.reduce((sum: number, p: number[]) => sum + p[0], 0) / pts.length;
+    const cy = pts.reduce((sum: number, p: number[]) => sum + p[1], 0) / pts.length;
+    G.playerMapTarget = { x: cx, y: cy };
+  }
 
   const tickCount = Math.max(1, Math.min(4, Math.round(travelMins / 5)));
   const tickMs = Math.max(1500, Math.min(4000, (travelMins * 200) / tickCount));
@@ -193,6 +204,7 @@ export function travelTo(locationId: string) {
         addActionFeed(`You arrive at <span class="text-[var(--text-bright)]">${loc.name}</span>.`, 'special');
         log(`You walk ${distStr} to <span class="text-[var(--text-bright)]">${loc.name}</span>. (~${timeStr})`, 'ev-info');
         stopCurrentAction(true);
+        G.mapMoveMode = null;
         G.pose = 'idle';
         G.activeTab = 'actions';
       }
